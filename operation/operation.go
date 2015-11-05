@@ -2,18 +2,12 @@ package operation
 
 import (
 	"fmt"
-	"net/http"
 
-	"github.com/wlMalk/gapi/constants"
+	"github.com/wlMalk/gapi/defaults"
 	"github.com/wlMalk/gapi/middleware"
 	"github.com/wlMalk/gapi/param"
 	"github.com/wlMalk/gapi/request"
-)
-
-var (
-	DefaultSchemes  = []string{constants.SCHEME_HTTP, constants.SCHEME_HTTPS}
-	DefaultConsumes = []string{constants.MIME_JSON}
-	DefaultProduces = []string{constants.MIME_JSON}
+	"github.com/wlMalk/gapi/response"
 )
 
 type Operations struct {
@@ -77,14 +71,22 @@ func (ops *Operations) Len() int {
 }
 
 func (ops *Operations) Prepare() {
-	for i := 0; i < len(ops.operations); i++ {
-		ops.operations[i].Prepare()
+	if !ops.isLocked {
+		for i := 0; i < len(ops.operations); i++ {
+			ops.operations[i].Prepare()
+		}
+	} else {
+		panic("Can not edit Operations while it's locked.")
 	}
 }
 
 func (ops *Operations) SetBasePath(basePath string) {
-	for i := 0; i < len(ops.operations); i++ {
-		ops.operations[i].setBasePath(basePath)
+	if !ops.isLocked {
+		for i := 0; i < len(ops.operations); i++ {
+			ops.operations[i].setBasePath(basePath)
+		}
+	} else {
+		panic("Can not edit Operations while it's locked.")
 	}
 }
 
@@ -108,9 +110,9 @@ func New(path string) *Operation {
 		path:     path,
 		method:   "GET",
 		params:   &param.Params{},
-		schemes:  DefaultSchemes,
-		consumes: DefaultConsumes,
-		produces: DefaultProduces,
+		schemes:  defaults.Schemes,
+		consumes: defaults.Consumes,
+		produces: defaults.Produces,
 	}
 }
 
@@ -135,7 +137,7 @@ func (o *Operation) Uses(handler middleware.Handler) *Operation {
 	return o
 }
 
-func (o *Operation) UsesFunc(f func(http.ResponseWriter, *request.Request)) *Operation {
+func (o *Operation) UsesFunc(f func(*response.Response, *request.Request)) *Operation {
 	o.handler = middleware.HandlerFunc(f)
 	return o
 }
@@ -150,6 +152,13 @@ func getHandler(h middleware.Handler, mw []middleware.Middleware) middleware.Han
 
 func (o *Operation) With(mw ...middleware.Middleware) *Operation {
 	o.handler = getHandler(o.handler, mw)
+	return o
+}
+
+func (o *Operation) Apply(temps ...func(*Operation)) *Operation {
+	for i := 0; i < len(temps); i++ {
+		temps[i](o)
+	}
 	return o
 }
 
@@ -217,21 +226,36 @@ func (o *Operation) Prepare() {
 	o.params.Lock()
 }
 
-func (o *Operation) ServeHTTP(w http.ResponseWriter, r *request.Request) {
+func (o *Operation) ServeHTTP(w *response.Response, r *request.Request) {
 	o.handler.ServeHTTP(w, r)
 }
 
-type container struct {
+type middlewareContainer struct {
 	middleware []middleware.Middleware
 }
 
-func With(mw ...middleware.Middleware) *container {
-	return &container{middleware: mw}
+func With(mw ...middleware.Middleware) *middlewareContainer {
+	return &middlewareContainer{middleware: mw}
 }
 
-func (c container) Handle(operations ...*Operation) []*Operation {
+func (c middlewareContainer) Handle(operations ...*Operation) []*Operation {
 	for i := 0; i < len(operations); i++ {
 		operations[i].With(c.middleware...)
+	}
+	return operations
+}
+
+type templateContainer struct {
+	templates []func(*Operation)
+}
+
+func Apply(temps ...func(*Operation)) *templateContainer {
+	return &templateContainer{templates: temps}
+}
+
+func (c templateContainer) To(operations ...*Operation) []*Operation {
+	for i := 0; i < len(operations); i++ {
+		operations[i].Apply(c.templates...)
 	}
 	return operations
 }
