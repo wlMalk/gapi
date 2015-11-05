@@ -6,6 +6,7 @@ import (
 	"github.com/wlMalk/gapi/middleware"
 	"github.com/wlMalk/gapi/operation"
 	"github.com/wlMalk/gapi/request"
+	"github.com/wlMalk/gapi/response"
 	"github.com/wlMalk/gapi/wrapper"
 
 	"github.com/julienschmidt/httprouter"
@@ -36,11 +37,12 @@ func (w *Wrapper) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func getHandle(h middleware.Handler) httprouter.Handle {
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		req := request.New(r)
+		res := response.New(w)
 		params := map[string]string{}
 		for _, p := range ps {
 			params[p.Key] = p.Value
 		}
 		req.Attributes.Set(wrapper.PathParamsKey, params)
-		h.ServeHTTP(w, req)
+		h.ServeHTTP(res, req)
 	})
 }
