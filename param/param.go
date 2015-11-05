@@ -68,18 +68,20 @@ func (p *Params) Lock() {
 
 // Param
 type Param struct {
-	name       string
-	validators []validation.Validator
-	def        interface{}
-	as         int
-	strSep     string
-	isRequired bool
-	isMultiple bool
-	isFile     bool
-	isInPath   bool
-	isInQuery  bool
-	isInHeader bool
-	isInBody   bool
+	name          string
+	validators    []validation.Validator
+	def           interface{}
+	as            int
+	strSep        string
+	isRequired    bool
+	isMultiple    bool
+	isFile        bool
+	isInPath      bool
+	isInQuery     bool
+	isInHeader    bool
+	isInBody      bool
+	preprocessor  func(*validation.Value)
+	postprocessor func(*validation.Value)
 }
 
 func New(name string) *Param {
