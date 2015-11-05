@@ -2,21 +2,20 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/wlMalk/gapi/constants"
+	"github.com/wlMalk/gapi/defaults"
 	"github.com/wlMalk/gapi/internal/util"
 	"github.com/wlMalk/gapi/param"
 	"github.com/wlMalk/gapi/request"
+	"github.com/wlMalk/gapi/response"
 	"github.com/wlMalk/gapi/validation"
-)
-
-var (
-	MaxMemory int64 = 32 << 20 // 32 MB
 )
 
 func CheckSchemes(schemes []string) MiddlewareFunc {
 	return MiddlewareFunc(func(next Handler) Handler {
-		return HandlerFunc(func(w http.ResponseWriter, r *request.Request) {
+		return HandlerFunc(func(w *response.Response, r *request.Request) {
 
 			var schemeAccepted bool
 			if r.URL.Scheme == "" {
@@ -33,9 +32,55 @@ func CheckSchemes(schemes []string) MiddlewareFunc {
 	})
 }
 
+func getEncodingFromAccept(produces []string, r *request.Request) (string, *response.Error) {
+	var encoding string
+
+	for _, acceptMime := range strings.Split(r.Header.Get(constants.HEADER_Accept), ",") {
+		mime := strings.Trim(strings.Split(acceptMime, ";")[0], " ")
+		if 0 == len(mime) || mime == "*/*" {
+			if len(produces) == 0 {
+				encoding = defaults.MimeType
+				break
+			} else {
+				encoding = produces[0]
+				break
+			}
+		} else {
+			if util.ContainsString(produces, mime) {
+				encoding = mime
+				break
+			}
+		}
+	}
+
+	if len(encoding) == 0 {
+		return encoding, response.NewError(406, "Request", "Encoding requested not valid.")
+	}
+
+	return encoding, nil
+}
+
+func CheckProduces(produces []string, mimeInAccept bool) MiddlewareFunc {
+	return MiddlewareFunc(func(next Handler) Handler {
+		return HandlerFunc(func(w *response.Response, r *request.Request) {
+			if mimeInAccept {
+				enc, err := getEncodingFromAccept(produces, r)
+				if err != nil {
+					w.WriteError(http.StatusBadRequest, err)
+				}
+				w.Encoding = enc
+			} else {
+
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	})
+}
+
 func ValidateParams(params *param.Params) MiddlewareFunc {
 	return MiddlewareFunc(func(next Handler) Handler {
-		return HandlerFunc(func(w http.ResponseWriter, r *request.Request) {
+		return HandlerFunc(func(w *response.Response, r *request.Request) {
 
 			q := r.URL.Query()
 			h := r.Header
@@ -45,7 +90,7 @@ func ValidateParams(params *param.Params) MiddlewareFunc {
 			}
 
 			if params.ContainsFiles() {
-				r.ParseMultipartForm(MaxMemory)
+				r.ParseMultipartForm(defaults.MaxMemory)
 			} else if params.ContainsBodyParams() {
 				r.ParseForm()
 			}
