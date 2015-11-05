@@ -4,6 +4,11 @@ import (
 	"regexp"
 )
 
+var (
+	RegexpNumber = regexp.MustCompile("[0-9]+")
+	RegexpAlpha  = regexp.MustCompile("[a-zA-Z]+")
+)
+
 func Eq(a interface{}) Validator {
 	return NewFuncValidator(func(v *Value, r Requester) error {
 		if a != v.Value() {
@@ -13,9 +18,17 @@ func Eq(a interface{}) Validator {
 	}, MsgEq.Msg(a))
 }
 
+func Number() Validator {
+	return Regexp(RegexpNumber)
+}
+
+func Alpha() Validator {
+	return Regexp(RegexpAlpha)
+}
+
 func Regexp(p *regexp.Regexp) Validator {
 	return NewFuncValidator(func(v *Value, r Requester) error {
-		if !p.MatchString(v.String()) {
+		if !p.MatchString(v.RawString()) {
 			return ErrRegexp.Err([]interface{}{v.Name(), p.String()}...)
 		}
 		return nil
