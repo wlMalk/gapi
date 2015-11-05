@@ -1,18 +1,17 @@
 package middleware
 
 import (
-	"net/http"
-
 	"github.com/wlMalk/gapi/request"
+	"github.com/wlMalk/gapi/response"
 )
 
 type Handler interface {
-	ServeHTTP(http.ResponseWriter, *request.Request)
+	ServeHTTP(*response.Response, *request.Request)
 }
 
-type HandlerFunc func(http.ResponseWriter, *request.Request)
+type HandlerFunc func(*response.Response, *request.Request)
 
-func (f HandlerFunc) ServeHTTP(w http.ResponseWriter, r *request.Request) {
+func (f HandlerFunc) ServeHTTP(w *response.Response, r *request.Request) {
 	f(w, r)
 }
 
